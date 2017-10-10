@@ -6,6 +6,7 @@ from openpyxl.workbook import Workbook
 import os
 import time
 import cx_Oracle
+import csv
 import pyodbc
 import getpass
 from time import sleep
@@ -139,10 +140,17 @@ class Ui_MainWindow(object):
         self.add_button.setAutoDefault(True)
         self.add_button.setObjectName(_fromUtf8("add_button"))
         self.searchkey_lineedit = QtGui.QLineEdit(self.searchpg)
-        self.searchkey_lineedit.setGeometry(QtCore.QRect(65, 20, 461, 20))
+        self.searchkey_lineedit.setGeometry(QtCore.QRect(57, 20, 268, 20))
         self.searchkey_lineedit.setFrame(True)
         self.searchkey_lineedit.setObjectName(_fromUtf8("searchkey_lineedit"))
         self.searchkey_lineedit.returnPressed.connect(self.search_button.click)
+
+        self.module_combobox2 = QtGui.QComboBox(self.searchpg)
+        self.module_combobox2.setGeometry(QtCore.QRect(380, 20, 151, 20))
+        self.module_combobox2.setFrame(True)
+        self.module_combobox2.setObjectName(_fromUtf8("module_combobox"))
+        self.module_combobox2.setStyleSheet("padding-left:5px;")
+        
         self.resultspane_listwidget = QtGui.QListWidget(self.searchpg)
         self.resultspane_listwidget.setGeometry(QtCore.QRect(20, 66, 801, 371))
         self.resultspane_listwidget.setStyleSheet(_fromUtf8("font: 10pt \"MS Shell Dlg 2\";\n"
@@ -167,6 +175,9 @@ class Ui_MainWindow(object):
         self.delete_button.setObjectName(_fromUtf8("delete_button"))
         self.searchhere_label = QtGui.QLabel(self.searchpg)
         self.searchhere_label.setGeometry(QtCore.QRect(20, 21, 81, 16))
+        self.moduletext_label = QtGui.QLabel(self.searchpg)
+        self.moduletext_label.setGeometry(QtCore.QRect(330, 20, 61, 20))
+        self.moduletext_label.setText(" Module: ")
         font = QtGui.QFont()
         font.setBold(False)
         font.setWeight(50)
@@ -353,6 +364,22 @@ class Ui_MainWindow(object):
         self.export_button = QtGui.QPushButton(self.dbresultpg)
         self.export_button.setGeometry(QtCore.QRect(737, 449, 91, 23))
         self.export_button.setObjectName(_fromUtf8("export_button"))
+
+        self.radio_csv = QtGui.QRadioButton('csv',self.dbresultpg)  ##radiobuttons
+        self.radio_csv.setGeometry(QtCore.QRect(649, 450, 40, 18))
+        self.radio_csv.setObjectName(_fromUtf8("radio_csv"))
+        
+        self.radio_xlsx = QtGui.QRadioButton('xlsx',self.dbresultpg)  ##radiobuttons
+        self.radio_xlsx.setGeometry(QtCore.QRect(602, 450, 41, 18))
+        self.radio_xlsx.setObjectName(_fromUtf8("radio_xlsx"))
+        
+        self.radio_txt = QtGui.QRadioButton('txt',self.dbresultpg)  ##radiobuttons
+        self.radio_txt.setGeometry(QtCore.QRect(690, 450, 41, 18))
+        self.radio_txt.setObjectName(_fromUtf8("radio_txt"))
+
+
+
+        
         self.executeResult_label = QtGui.QLabel(self.dbresultpg)
         self.executeResult_label.setGeometry(QtCore.QRect(10, 0, 46, 13))
         font = QtGui.QFont()
@@ -519,6 +546,12 @@ class Ui_MainWindow(object):
                self.module_combobox.addItem(_fromUtf8(""))
                self.module_combobox.setItemText(rows,MOD[rows])
         self.module_combobox.setMinimumHeight(10)
+        self.module_combobox2.addItem(_fromUtf8(""))
+        self.module_combobox2.setItemText(0,str("All"))
+        for rows in range(k):
+               self.module_combobox2.addItem(_fromUtf8(""))
+               self.module_combobox2.setItemText(rows+1,MOD[rows])
+        self.module_combobox2.setMinimumHeight(10)
         s=len(ENV)
         for rows in range(s):
                self.envdrop_combobox.addItem(_fromUtf8(""))
@@ -593,25 +626,25 @@ class Ui_MainWindow(object):
         
         global searchKey
         searchKey= self.searchkey_lineedit.text()
-        if searchKey ==' ' or searchKey=='':
-    ##           self.SearchBar.setStyleSheet("QLineEdit {color:red;} QLineEdit:focus {color:black;} ")
-    ##           self.SearchBar.setText("Enter a Keyword")
-    ##           self.SearchBar.setStyleSheet("")
-            msgBox=QtGui.QMessageBox()
-            msgBox.setIcon(QtGui.QMessageBox.Information)            
-            msgBox.setWindowTitle("Message")
-            msgBox.setText("Please enter a keyword ")
-            msgBox.exec_()
-        else:
+##        if searchKey ==' ' or searchKey=='' and self.combobox2.currentText() is not "All":
+##    ##           self.SearchBar.setStyleSheet("QLineEdit {color:red;} QLineEdit:focus {color:black;} ")
+##    ##           self.SearchBar.setText("Enter a Keyword")
+##    ##           self.SearchBar.setStyleSheet("")
+##            msgBox=QtGui.QMessageBox()
+##            msgBox.setIcon(QtGui.QMessageBox.Information)            
+##            msgBox.setWindowTitle("Message")
+##            msgBox.setText("Please enter a keyword ")
+##            msgBox.exec_()
+##        else:
             
-            if self.resultspane_listwidget.count() ==0:
-                self.search()
-            else:
-                self.resultspane_listwidget.clear()
-                self.search()
+        if self.resultspane_listwidget.count() ==0:
+            self.search()
+        else:
+            self.resultspane_listwidget.clear()
+            self.search()
 
         
-            searchKey=''
+        searchKey=''
     def adminbutton(self):
         if self.add_button.isEnabled():
             self.label_2.setText("Already in admin mode")
@@ -809,14 +842,20 @@ class Ui_MainWindow(object):
         self.resultspane_listwidget.clear()
         self.runstatus01.setText("")
         
-        keyword= searchKey
+        keyword11= searchKey
         
         
         MDB =URL; DRV='{Microsoft Access Driver (*.mdb)}'
         con = pyodbc.connect('DRIVER={};DBQ={}'.format(DRV,MDB))
         self.runstatus01.setText("Searching ...")
         cur = con.cursor()
-        SQL="SELECT Module,Description,Query FROM Table1 where lcase(Table1.[Module]) like lcase('%"+keyword+"%') or lcase(Table1.[Description]) like lcase('%"+keyword+"%') ORDER BY MODULE"
+        #searchentr
+        keyword22=self.module_combobox2.currentText()
+        if(keyword22=="All"):            
+            SQL="SELECT Module,Description,Query FROM Table1 where lcase(Table1.[Module]) like lcase('%"+keyword11+"%') or lcase(Table1.[Description]) like lcase('%"+keyword11+"%') ORDER BY MODULE"
+        else:
+           # if (keyword11=="")
+            SQL="SELECT Module,Description,Query FROM Table1 where lcase(Table1.[Module]) like lcase('%"+keyword22+"%') and lcase(Table1.[Description]) like lcase('%"+keyword11+"%') ORDER BY MODULE"
         rows=cur.execute(SQL).fetchall()
         self.resultspane_listwidget.hide()
         
@@ -858,8 +897,56 @@ class Ui_MainWindow(object):
         cur.close()
         con.close()        
                    
-        
-        
+    def exportToCsv(self):    
+        try:
+            if  self.model.columnCount()!=0 or self.model.rowCount()!=0:
+                self.runstatus03.setText("Exporting, please wait...")
+                tick1=time.clock()
+
+                desfile ='Export_'+str(time.strftime('%y-%m-%d_%H%M%S'))+'.csv'
+                outputfile = open(desfile,'w')
+                output = csv.writer(outputfile,dialect='excel',quotechar="'")
+                coll=[]
+                for a in range(self.model.columnCount()):
+                    coll.append(self.model.horizontalHeaderItem(a).text())
+                output.writerow(coll)
+                QtGui.qApp.processEvents()
+                self.progressBar.setValue(0)
+                QtGui.qApp.processEvents()
+
+                roww=[]
+                
+                for i in range(self.model.rowCount()):
+                    for j in range(self.model.columnCount()):
+                      
+                       if self.model.item(i,j) is None:
+                           roww.append("")
+                           
+                       else:
+                           roww.append(self.model.item(i,j).text())
+                       self.progressBar.setValue((i/self.model.rowCount())*100)
+                for index in roww:
+                    
+                    print (index)
+                    
+                self.progressBar.setValue(100)
+                QtGui.qApp.processEvents()
+
+               
+                outputfile.close()
+                tick2=time.clock()
+                self.progressBar.setValue(100)
+                self.runstatus03.setText("Done! Data saved in "+os.getcwd()+"\\"+desfile)
+                self.statusbar.showMessage("Export completed in "+str(round((tick2-tick1),3))+" seconds")
+                self.runstatus03.setStyleSheet(_fromUtf8("color: Green;"))
+            else:
+                self.runstatus03.setText("Data not saved: No data found in the table.")
+                self.runstatus03.setStyleSheet(_fromUtf8("color:Red;"))
+                
+            
+        except BaseException as e:            
+            self.runstatus03.setText("Error: "+str(e))
+            self.runstatus03.setStyleSheet(_fromUtf8("color: Red;"))
        
         
         
@@ -990,31 +1077,32 @@ class Ui_MainWindow(object):
                 self.model.clear()
                 self.statusbar.showMessage("")
                 QtGui.qApp.processEvents()
+                
                 conn =cx_Oracle.connect(usern,pwd,constr)
                 self.runstatus03.setText("Executing Script ...")
                 QtGui.qApp.processEvents()                
                 
                 
                 
-                cur = conn.cursor()
+                curr = conn.cursor()
                 
                 qrystr = self.query_plaintextedit.toPlainText().replace(";","")
                 qrystr =qrystr.rstrip()
                 tick1=time.clock()
-                cur.execute(qrystr)
+                curr.execute(qrystr)
                        
                 numberOfRows= int(self.rowcount_lineedit.text())
-                result= cur.fetchmany(numRows=numberOfRows)
+                result= curr.fetchmany(numRows=numberOfRows)
               
-                    
+                numCol=len(curr.description)   
 ##                col_names = [] 
                 head=""
 ##                self.sqlTableWidget.setColumnCount(len(cur.description))
 ##                self.sqlTableWidget.setRowCount(len(result))
                 self.progressBar2.minimum = 1
                 self.progressBar2.maximum = len(result)
-                for i in range(len(cur.description)):                    
-                    head= head+str(cur.description[i][0])+";"
+                for i in range(len(curr.description)):                    
+                    head= head+str(curr.description[i][0])+";"
                 head= head[:-1]    
                 self.model.setHorizontalHeaderLabels(head.split(";"))
                 
@@ -1035,23 +1123,24 @@ class Ui_MainWindow(object):
                 mrow =QtGui.QStandardItem()
                 g= []
                 for i in  range(len(result)):               
-                    for j in range(len(cur.description)):
+                    for j in range(len(curr.description)):
                       rrow =QtGui.QStandardItem(str(result[i][j]))
                       g.append(rrow)                    
                     self.model.appendRow(g)
                     g =[]
                     self.progressBar2.setValue((i/len(result))*100)
+                QtGui.qApp.processEvents()
                 self.progressBar2.setValue(100)
 
                 QtGui.qApp.processEvents()    
                
                 self.sqlTableWidget.resizeColumnsToContents()
                
-                cur.close()
+                curr.close()
                 conn.close()
                 tick2=time.clock()
                 self.runstatus03.setText("Task completed in "+str(round((tick2-tick1),3))+" seconds")
-                self.statusbar.showMessage("Displaying "+str(len(result))+" rows")
+                self.statusbar.showMessage("Displaying "+str(len(result))+" rows"+", "+str(numCol)+" columns")
                 
             except BaseException as e:
                     self.showMsgBox("Error",str(e))
@@ -1103,7 +1192,8 @@ class Ui_MainWindow(object):
         self.query_plaintextedit.clear()
         self.desc_lineedit.clear()
         self.module_combobox.setCurrentIndex(0)
-    def showMsgBox2(self):
+    def showMsgBox2(self): #export_button trig
+        
         if  self.model.columnCount()!=0 or self.model.rowCount()!=0:
             msgBox=QtGui.QMessageBox()
             msgBox.setIcon(QtGui.QMessageBox.Question)
@@ -1111,14 +1201,21 @@ class Ui_MainWindow(object):
             #msgBox.setWindowModality(QtCore.Qt.NonModal)
             msgBox.setWindowTitle("Confirm")
             msgBox.setText("Are you sure you want to export data to Excel?")
-            msgBox.setStandardButtons(QtGui.QMessageBox.Yes |QtGui.QMessageBox.No)
+            msgBox.setStandardButtons(QtGui.QMessageBox.Yes |QtGui.QMessageBox.No)            
             yesBt = msgBox.button(QtGui.QMessageBox.Yes)
             yesBt.setText('Yes')
             noBt = msgBox.button(QtGui.QMessageBox.No)
             noBt.setText('No')
             msgBox.exec_()
             if msgBox.clickedButton()==yesBt:
-               self.exportToExcel()
+                if(self.radio_xlsx.isChecked()):                    
+                    self.exportToExcel()
+                elif(self.radio_csv.isChecked()):
+                    self.exportToCsv()
+                elif(self.radio_txt.isChecked()):
+                    self.exportToTxt()
+                
+                
         else:
             self.runstatus03.setText("Export failed: No data found in the table.")
             self.runstatus03.setStyleSheet(_fromUtf8("color:Red;"))
