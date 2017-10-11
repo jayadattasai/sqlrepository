@@ -11,6 +11,18 @@ import pyodbc
 import getpass
 from time import sleep
 import sys
+import multiprocessing
+import threading
+import queue
+global conns
+global curdesc
+curdesc =""
+global resultSet
+resultSet= []
+global errormsg
+errormsg =""
+
+conns = 1
 logging.basicConfig(level=logging.DEBUG, filename='tdmt.log', filemode='a')
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
@@ -364,6 +376,10 @@ class Ui_MainWindow(object):
         self.export_button = QtGui.QPushButton(self.dbresultpg)
         self.export_button.setGeometry(QtCore.QRect(737, 449, 91, 23))
         self.export_button.setObjectName(_fromUtf8("export_button"))
+        
+        self.term_button = QtGui.QPushButton(self.dbresultpg)
+        self.term_button.setGeometry(QtCore.QRect(540, 450, 41, 18))
+        self.term_button.setObjectName(_fromUtf8("term_button"))
 
         self.radio_csv = QtGui.QRadioButton('csv',self.dbresultpg)  ##radiobuttons
         self.radio_csv.setGeometry(QtCore.QRect(649, 450, 40, 18))
@@ -504,7 +520,7 @@ class Ui_MainWindow(object):
         self.listTable.doubleClicked.connect(self.printthis)
         self.resultspane_listwidget.doubleClicked.connect(self.printthis)
         self.admin_button.clicked.connect(self.adminbutton)
-        self.execute_button.clicked.connect(self.execQuery)
+        self.execute_button.clicked.connect(self.diffProc) #execTri
         self.go_button.clicked.connect(self.gobutton)
         self.user_button.clicked.connect(self.usermode)
         self.delete_button.clicked.connect(self.delQuery)
@@ -532,10 +548,11 @@ class Ui_MainWindow(object):
 ##        self.clear_button.setStyleSheet("border:1px solid;border-radius:4px;")
         self.showStat()
         self.checkindex()
-
+        
         
         
         self.export_button.clicked.connect(self.showMsgBox2)
+        self.term_button.clicked.connect(self.terminate)
         
             
          
@@ -556,6 +573,32 @@ class Ui_MainWindow(object):
         for rows in range(s):
                self.envdrop_combobox.addItem(_fromUtf8(""))
                self.envdrop_combobox.setItemText(rows,ENV[rows])
+    def diffProc(self): #difff
+        global resultSet
+        global curdesc
+        global errormsg 
+
+        resultSet = []
+        curdesc = ""
+        errormsg =""
+        qu= self.query_plaintextedit.toPlainText().replace(";","")
+        qu =qu.rstrip()
+        q = queue.Queue()
+        self.runstatus03.setText("Executing Script ...") #status
+        tick1=time.clock()
+        #p = multiprocessing.Process(target=self.execQuery2, name="connectorThread",args=(self.userId_lineedit.text(),self.password_lineedit.text(),str(self.envdrop_combobox.currentText()),qu,int(self.rowcount_lineedit.text()),q,))
+        p = threading.Thread(target=self.execQuery2, name="connectorThread", args=(self.userId_lineedit.text(),self.password_lineedit.text(),str(self.envdrop_combobox.currentText()),qu,int(self.rowcount_lineedit.text()),))
+        p.daemon = True
+        p.start()
+        p.join()
+        try:
+            self.execQuery()
+          
+        except BaseException as e:
+                    self.showMsgBox("Error",str(e))
+        tick2=time.clock()
+        self.statusbar.showMessage("Task completed in "+str(round((tick2-tick1),3))+" seconds")
+        
     def logoff(self):
         msgBox=QtGui.QMessageBox()
         msgBox.setIcon(QtGui.QMessageBox.Question)        
@@ -589,7 +632,9 @@ class Ui_MainWindow(object):
         cb.setText(self.query_plaintextedit.toPlainText(),mode=cb.Clipboard)
         self.statusbar.showMessage("Query copied into clipboard")
     def checkindex(self):
-        if self.stackedWidget.currentIndex()==0: #and not(self.stackedWidget.currentIndex()==1 or 2 or 3):
+        
+        if self.stackedWidget.currentIndex()==0:
+            #and not(self.stackedWidget.currentIndex()==1 or 2 or 3):
             self.label.hide()
             self.scrollerwebview.hide()
             self.prev_button.hide()
@@ -606,8 +651,11 @@ class Ui_MainWindow(object):
             self.mdcount_label.show()
 
     def prevbutton(self):
+        for thread in  threading.enumerate():
+            print (thread.name)
         
-        
+        global conns
+        conns =1
         if(self.stackedWidget.currentIndex()==1):
            
            self.stackedWidget.setCurrentIndex(3)
@@ -895,17 +943,17 @@ class Ui_MainWindow(object):
             self.progressBar.setValue(0)
 			
         cur.close()
-        con.close()        
-                   
-    def exportToCsv(self):    
+        con.close()
+        
+    def exportToTxt(self):
         try:
             if  self.model.columnCount()!=0 or self.model.rowCount()!=0:
                 self.runstatus03.setText("Exporting, please wait...")
                 tick1=time.clock()
 
-                desfile ='Export_'+str(time.strftime('%y-%m-%d_%H%M%S'))+'.csv'
+                desfile ='Export_'+str(time.strftime('%y-%m-%d_%H%M%S'))+'.txt'
                 outputfile = open(desfile,'w')
-                output = csv.writer(outputfile,dialect='excel',quotechar="'")
+                output = csv.writer(outputfile,delimiter=' ')
                 coll=[]
                 for a in range(self.model.columnCount()):
                     coll.append(self.model.horizontalHeaderItem(a).text())
@@ -914,20 +962,75 @@ class Ui_MainWindow(object):
                 self.progressBar.setValue(0)
                 QtGui.qApp.processEvents()
 
-                roww=[]
+                roww=[[self.model.item(i,j).text() for j in range(self.model.columnCount()) ] for i in range(self.model.rowCount())]
                 
-                for i in range(self.model.rowCount()):
-                    for j in range(self.model.columnCount()):
+##                for i in range(self.model.rowCount()):
+##                    for j in range(self.model.columnCount()):
                       
-                       if self.model.item(i,j) is None:
-                           roww.append("")
-                           
-                       else:
-                           roww.append(self.model.item(i,j).text())
-                       self.progressBar.setValue((i/self.model.rowCount())*100)
-                for index in roww:
+##                       if self.model.item(i,j) is None:
+##                           roww.append("")
+##                           
+##                       else:
+##                           roww.append(self.model.item(i,j).text())
                     
-                    print (index)
+                for index in roww:
+                    self.progressBar.setValue((i/self.model.rowCount())*100)
+                   # print (index)
+                    output.writerow(index)
+                    
+                self.progressBar.setValue(100)
+                QtGui.qApp.processEvents()
+
+               
+                outputfile.close()
+                tick2=time.clock()
+                self.progressBar.setValue(100)
+                self.runstatus03.setText("Done! Data saved in "+os.getcwd()+"\\"+desfile)
+                self.statusbar.showMessage("Export completed in "+str(round((tick2-tick1),3))+" seconds")
+                self.runstatus03.setStyleSheet(_fromUtf8("color: Green;"))
+            else:
+                self.runstatus03.setText("Data not saved: No data found in the table.")
+                self.runstatus03.setStyleSheet(_fromUtf8("color:Red;"))
+                
+            
+        except BaseException as e:            
+            self.runstatus03.setText("Error: "+str(e))
+            self.runstatus03.setStyleSheet(_fromUtf8("color: Red;"))
+       
+        
+        
+    def exportToCsv(self):    
+        try:
+            if  self.model.columnCount()!=0 or self.model.rowCount()!=0:
+                self.runstatus03.setText("Exporting, please wait...")
+                tick1=time.clock()
+
+                desfile ='Export_'+str(time.strftime('%y-%m-%d_%H%M%S'))+'.csv'
+                outputfile = open(desfile,'w')
+                output = csv.writer(outputfile,dialect='excel',quotechar="'",quoting=csv.QUOTE_NONNUMERIC)
+                coll=[]
+                for a in range(self.model.columnCount()):
+                    coll.append(self.model.horizontalHeaderItem(a).text())
+                output.writerow(coll)
+                QtGui.qApp.processEvents()
+                self.progressBar.setValue(0)
+                QtGui.qApp.processEvents()
+
+                roww=[[self.model.item(i,j).text() for j in range(self.model.columnCount()) ] for i in range(self.model.rowCount())]
+                
+##                for i in range(self.model.rowCount()):
+##                    for j in range(self.model.columnCount()):
+                      
+##                       if self.model.item(i,j) is None:
+##                           roww.append("")
+##                           
+##                       else:
+##                           roww.append(self.model.item(i,j).text())
+                    
+                for index in roww:
+                    self.progressBar.setValue((i/self.model.rowCount())*100)
+                   # print (index)
+                    output.writerow(index)
                     
                 self.progressBar.setValue(100)
                 QtGui.qApp.processEvents()
@@ -1047,100 +1150,110 @@ class Ui_MainWindow(object):
                 cur.close()
                 con.close()
                 self.setSearchKey()
-                    
-                    
-                    
-                QtGui.qApp.processEvents()
-                    
+                QtGui.qApp.processEvents()                    
                 self.statusbar.showMessage("Deleted "+str(n)+" entries")
                 n=0
         else:
             self.statusbar.showMessage("Operation cancelled.")
             
+    def execQuery2(self,userid,pwd,env,queryStr,numberOfRows):
+        try:
+            q= queue.Queue
+            conn =cx_Oracle.connect(userid,pwd,env)
+            curr = conn.cursor()
+            qrystr =queryStr.rstrip()
+            curr.execute(qrystr)
+            result= curr.fetchmany(numRows=numberOfRows)
+            global curdesc
+            for i in range(len(curr.description)):
+                curdesc= curdesc+str(curr.description[i][0])+";"
+            
+            global resultSet
+            resultSet = result
+            self.statusbar.showMessage("Executing Query...")
+           
+            
+            
+            curr.close()
+            conn.close()
+##            return  resultSet, curdesc
+           # q.put((resultSet,curdesc))
+            
+        
+        except BaseException as e:
+             global errormsg
+             errormsg = str(e)
+             
+             
                     
-                                    
+        
          
-    def execQuery(self):
-        if self.userId_lineedit.text() or self.password_lineedit.text() is not "":
+    def execQuery(self): ##oraexe
+        if self.userId_lineedit.text() or self.password_lineedit.text() is not "" :
+            if(errormsg is not "" ):
+                self.showMsgBox("Error",errormsg)
+            if (resultSet is None):
+                self.showMsgBox("Information","No data returned")
             self.stackedWidget.setCurrentIndex(3)
-            QtGui.qApp.processEvents()
-            
-            
+            QtGui.qApp.processEvents() 
             self.runstatus03.setText("Connecting database ...")
             constr =str(self.envdrop_combobox.currentText())
             usern = self.userId_lineedit.text()
-            pwd=self.password_lineedit.text()
-            
+            pwd=self.password_lineedit.text() 
             self.runstatus03.setStyleSheet(_fromUtf8("color:blue;"))
-            try:
-                
+            try:                
                 self.model.clear()
                 self.statusbar.showMessage("")
-                QtGui.qApp.processEvents()
-                
-                conn =cx_Oracle.connect(usern,pwd,constr)
-                self.runstatus03.setText("Executing Script ...")
                 QtGui.qApp.processEvents()                
+               # conn =cx_Oracle.connect(usern,pwd,constr)
+                self.runstatus03.setText("Executing Script ...")
+                QtGui.qApp.processEvents()  
+                #curr = conn.cursor()
+                #qrystr = self.query_plaintextedit.toPlainText().replace(";","")
+                #qrystr =qrystr.rstrip()
                 
-                
-                
-                curr = conn.cursor()
-                
-                qrystr = self.query_plaintextedit.toPlainText().replace(";","")
-                qrystr =qrystr.rstrip()
-                tick1=time.clock()
-                curr.execute(qrystr)
-                       
-                numberOfRows= int(self.rowcount_lineedit.text())
-                result= curr.fetchmany(numRows=numberOfRows)
-              
-                numCol=len(curr.description)   
+##                while True:
+##                    time.sleep(1)
+##                    QtCore.QCoreApplication.processEvents()
+##                    if( r==1):
+##                        break
+##                curr.execute(qrystr)                       
+##                numberOfRows= int(self.rowcount_lineedit.text()) 
+                             
+                 
 ##                col_names = [] 
-                head=""
-##                self.sqlTableWidget.setColumnCount(len(cur.description))
-##                self.sqlTableWidget.setRowCount(len(result))
-                self.progressBar2.minimum = 1
-                self.progressBar2.maximum = len(result)
-                for i in range(len(curr.description)):                    
-                    head= head+str(curr.description[i][0])+";"
-                head= head[:-1]    
-                self.model.setHorizontalHeaderLabels(head.split(";"))
-                
-                
-                
-              
-               
-                
-                
-##                for i in  range(len(result)):
-##                    for j in range(len(cur.description)):
-####                        item = QtGui.QTableWidgetItem()
-####                        self.sqlTableWidget.setItem(i, j, item)
-####                        item.setText(str(result[i][j]))
-####                        row = row+str(result[i][j])+";"
-##                    self.progressBar2.setValue((i/len(result))*100)                    
-##                    QtGui.qApp.processEvents()
-                mrow =QtGui.QStandardItem()
-                g= []
-                for i in  range(len(result)):               
-                    for j in range(len(curr.description)):
-                      rrow =QtGui.QStandardItem(str(result[i][j]))
-                      g.append(rrow)                    
-                    self.model.appendRow(g)
-                    g =[]
-                    self.progressBar2.setValue((i/len(result))*100)
-                QtGui.qApp.processEvents()
-                self.progressBar2.setValue(100)
-
-                QtGui.qApp.processEvents()    
-               
-                self.sqlTableWidget.resizeColumnsToContents()
-               
-                curr.close()
-                conn.close()
-                tick2=time.clock()
-                self.runstatus03.setText("Task completed in "+str(round((tick2-tick1),3))+" seconds")
-                self.statusbar.showMessage("Displaying "+str(len(result))+" rows"+", "+str(numCol)+" columns")
+                if (len(resultSet))>0 :
+                    self.progressBar2.minimum = 1
+                    self.progressBar2.maximum = len(resultSet)
+                    global curdesc
+                    
+                    curdesc= curdesc[:-1]    
+                    self.model.setHorizontalHeaderLabels(curdesc.split(";"))
+                    colss= curdesc.split(";")
+                    
+                    numCol=len(colss)
+                    
+                    mrow =QtGui.QStandardItem()
+                    g= []
+                    for i in  range(len(resultSet)):               
+                        for j in range(len(colss)):
+                          rrow =QtGui.QStandardItem(str(resultSet[i][j]))
+                          g.append(rrow)                    
+                        self.model.appendRow(g)
+                        g=[]
+##                        if (i % (len(resultSet)/5)==0):
+##                            QtCore.QCoreApplication.processEvents()
+                        if(conns ==0):
+                            break
+                        self.progressBar2.setValue((i/len(resultSet))*100)
+                    QtCore.QCoreApplication.processEvents()                
+                    self.progressBar2.setValue(100)
+                    QtGui.qApp.processEvents()                                                  
+                                        
+                    self.statusbar.showMessage("Displaying "+str(len(resultSet))+" rows"+", "+str(len(colss))+" columns")
+                else:
+                    
+                    self.statusbar.showMessage("No data returned")
                 
             except BaseException as e:
                     self.showMsgBox("Error",str(e))
@@ -1192,7 +1305,25 @@ class Ui_MainWindow(object):
         self.query_plaintextedit.clear()
         self.desc_lineedit.clear()
         self.module_combobox.setCurrentIndex(0)
-    def showMsgBox2(self): #export_button trig
+    def terminate(self):
+        global conns
+        conns = 0
+        
+##        constr =str(self.envdrop_combobox.currentText())
+##        usern = self.userId_lineedit.text()
+##        pwd=self.password_lineedit.text()
+##        conn =cx_Oracle.connect(usern,pwd,constr)
+##        conn.cancel()
+##        conn.close()
+##        print (conn)
+        
+        
+        
+
+        
+    def showMsgBox2(self): #export_button trigcx
+        
+        
         
         if  self.model.columnCount()!=0 or self.model.rowCount()!=0:
             msgBox=QtGui.QMessageBox()
@@ -1258,6 +1389,7 @@ class Ui_MainWindow(object):
         #self.mdcount_label.setText(_translate("MainWindow", "Module Counts:", None))
         self.clearinputs_button.setText(_translate("MainWindow", "Clear", None))        
         self.export_button.setText(_translate("MainWindow", "Export", None))
+        self.term_button.setText(_translate("MainWindow", "Stop", None))
         self.executeResult_label.setText(_translate("MainWindow", "Results:", None))
         self.runstatus03.setText(_translate("MainWindow", "Ready", None))
         #self.prev_button.setText(_translate("MainWindow", "Prev", None))
@@ -1277,7 +1409,7 @@ class qCustom (QtGui.QMainWindow):
         else:
             event.ignore()
 
-
+                    
 if __name__ == "__main__":
     import sys
  
@@ -1286,7 +1418,8 @@ if __name__ == "__main__":
     ui = Ui_MainWindow()
     ui.setupUi(MainWindow)
     MainWindow.show()
-    sys.exit(app.exec_())
+
+sys.exit(app.exec_())
 
 
 
