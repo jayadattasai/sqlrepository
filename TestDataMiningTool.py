@@ -11,9 +11,8 @@ import pyodbc
 import getpass
 from time import sleep
 import sys
-import multiprocessing
-import threading
-import queue
+global origQuery
+
 
 
 logging.basicConfig(level=logging.DEBUG, filename='tdmt.log', filemode='a')
@@ -32,6 +31,7 @@ except AttributeError:
         return QtGui.QApplication.translate(context, text, disambig)
 searchKey= ''
 try:
+    
     URL= open('config\\setDirectory.ini').read()
     ENV= open('config\\setEnv.ini').readlines()
     for i in range(len(ENV)):
@@ -120,7 +120,8 @@ class Ui_MainWindow(object):
         self.clear_button = QtGui.QPushButton(self.searchpg)
         self.clear_button.setGeometry(QtCore.QRect(740, 20, 75, 21))
         self.clear_button.setAutoDefault(False)
-        self.clear_button.setObjectName(_fromUtf8("clear_button"))
+        self.clear_button.setObjectName(_fromUtf8("clear_button"))        
+        
         self.search_button = QtGui.QPushButton(self.searchpg)
         self.search_button.setGeometry(QtCore.QRect(546, 19, 75, 23))
         self.adminpwd.returnPressed.connect(self.go_button.click)
@@ -362,6 +363,7 @@ class Ui_MainWindow(object):
         self.sqlTableWidget.setObjectName(_fromUtf8("sqlTableWidget"))        
         self.sqlTableWidget.horizontalHeader().setCascadingSectionResizes(False)
         self.sqlTableWidget.horizontalHeader().setStretchLastSection(False)
+##        self.sqlTableWidget.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
         self.sqlTableWidget.verticalHeader().setDefaultSectionSize(20)
         self.model = QtGui.QStandardItemModel()
         self.sqlTableWidget.setModel(self.model)
@@ -498,6 +500,13 @@ class Ui_MainWindow(object):
         MainWindow.setTabOrder(self.export_button, self.prev_button)
         MainWindow.setTabOrder(self.prev_button, self.next_button)
         MainWindow.setTabOrder(self.next_button, self.scrollerwebview)
+        
+        self.audit_button = QtGui.QPushButton(self.searchentitypg)  ###########asasa###############
+        self.audit_button.setGeometry(QtCore.QRect(450, 444, 75, 21))
+        self.audit_button.setAutoDefault(False)
+        self.audit_button.setObjectName(_fromUtf8("audit_button"))
+        self.audit_button.setText("View audit")
+        self.audit_button.clicked.connect(self.viewAudit)
         self.label_2.hide()
         self.pwdlabel.hide()
         self.adminpwd.hide()
@@ -567,6 +576,12 @@ class Ui_MainWindow(object):
         for rows in range(s):
                self.envdrop_combobox.addItem(_fromUtf8(""))
                self.envdrop_combobox.setItemText(rows,ENV[rows])
+    def viewAudit(self):        
+        import Audit
+        self.audit=QtGui.QMainWindow()
+        self.ui2=Audit.Ui_MainWindowAudit(queryDesc=self.desc_lineedit.text())
+        self.ui2.setupUi(self.audit)
+        self.audit.show()
           
     def diffProc(self): #difff
         self.stackedWidget.setCurrentIndex(3)
@@ -605,12 +620,12 @@ class Ui_MainWindow(object):
         
         
         
-        self.runstatus03.setText("")
+        self.runstatus03.setText("")        
+        self.workerobject.start()  
         self.statusbar.showMessage("Executing script...")
-        self.workerobject.start()
-##        while p.is_alive():
-##            QtGui.qApp.processEvents()
-##            time.sleep(0.01)
+        
+        
+            
   
         
         
@@ -737,6 +752,7 @@ class Ui_MainWindow(object):
             self.stackedWidget.setCurrentIndex(1)
             self.prev_button.show()
             self.next_button.show()
+            self.audit_button.show()
             self.add_button.show()
             self.add_button.setEnabled(True)
             self.save_button.show()
@@ -753,6 +769,7 @@ class Ui_MainWindow(object):
             
         else:
             self.label_2.show()
+            
             self.add_button.hide()
             self.save_button.hide()
             self.update_button.hide()
@@ -766,6 +783,7 @@ class Ui_MainWindow(object):
         self.add_button.setEnabled(False)
         self.add_button.hide()
         self.save_button.hide()
+        self.audit_button.hide()
         self.update_button.hide()
         self.delete_button.hide()
         self.prev_button.show()
@@ -814,6 +832,9 @@ class Ui_MainWindow(object):
             con.close()
             self.statusbar.showMessage("")
             rowsList2 =rows
+            global origQuery
+            origQuery = str(rowsList2[0][2])
+            
             self.query_plaintextedit.setPlainText(str(rowsList2[0][2]))
         
     def msgbox(self,typ,title,message):
@@ -846,31 +867,28 @@ class Ui_MainWindow(object):
                     
             else:
                     
-                    queryCom ="INSERT INTO Table1 ([Module],[Description],[Query],[UserId],[Created Date]) VALUES(?,?,?,?,?)"
+                    queryCom ="INSERT INTO Table1 ([Module],[Description],[Query],[UserId]) VALUES(?,?,?,?)"
                     #+moduleStr+"','"+descStr+"','"+queryStr+"','"+usrStr+"','"+time.strftime("%m/%d/%Y")+"')"
                    
-                    cur.execute(queryCom,moduleStr,descStr,queryStr,usrStr,time.strftime("%m/%d/%Y"))
+                    cur.execute(queryCom,moduleStr,descStr,queryStr,usrStr)#,time.strftime("%m/%d/%Y")
                     g=cur.rowcount
                     cur.commit()
-                    con.commit()
+                    con.commit()                                       
                     cur.close()
                     con.close()
                     self.lineReset()
                     if g !=0:
                         self.statusbar.showMessage("Saved!")
-                        self.statusbar.setStyleSheet(_fromUtf8("color: green;"))
+                        self.statusbar.setStyleSheet(_fromUtf8("color: green;font-weight: Bold;"))
                     else:
                         self.statusbar.showMessage("Save failed!")
                     
                     
         except BaseException as e:
             self.showMsgBox("Error",str(e))
-    def showStat(self):
+    def showStat(self):           
         
-       # self.tabWidget.setCurrentIndex(0)
-             
-        
-        MDB =URL; DRV='{Microsoft Access Driver (*.mdb)};Uid:jsaika01;pwd='
+        MDB = URL ; DRV='{Microsoft Access Driver (*.mdb)};Uid:jsaika01;pwd='
         con = pyodbc.connect('DRIVER={};DBQ={}'.format(DRV,MDB))
 
         cur = con.cursor()
@@ -929,11 +947,12 @@ class Ui_MainWindow(object):
            # if (keyword11=="")
             SQL="SELECT Module,Description,Query FROM Table1 where lcase(Table1.[Module]) like lcase('%"+keyword22+"%') and lcase(Table1.[Description]) like lcase('%"+keyword11+"%') ORDER BY MODULE"
         rows=cur.execute(SQL).fetchall()
-        self.resultspane_listwidget.hide()
-        
+        self.resultspane_listwidget.hide()        
         font=QtGui.QFont()
         font.setBold(True)
+        
         if len(rows) >0:
+            self.runstatus01.setText("Fetching entries ...")
             
             self.listTable.horizontalHeader().setVisible(True)
             self.listTable.setColumnCount(2)
@@ -949,17 +968,14 @@ class Ui_MainWindow(object):
                     item.setText(str(rows[i][j]))
                     #row = row+str(rows[i][j])+";"
                 self.listTable.item(i,0).setFont(font)
-                self.progressBar.setValue((i/len(rows))*100)                    
-                QtGui.qApp.processEvents()                   
+                self.progressBar.setValue((i/len(rows))*100)
+##                if ((int(len(rows)/5)) %5==0):
+##                    QtGui.qApp.processEvents()                   
             self.progressBar.setValue(100)
             self.runstatus01.setText("Showing "+str(len(rows))+" entries")
             #self.listTable.resizeColumnsToContents()
             
-            self.listTable.horizontalHeader().setResizeMode(1,QtGui.QHeaderView.ResizeToContents)
-            
-            
-            
-                
+            self.listTable.horizontalHeader().setResizeMode(1,QtGui.QHeaderView.ResizeToContents)                
         else:
             
             self.runstatus01.setText("")
@@ -1129,10 +1145,6 @@ class Ui_MainWindow(object):
     def delQuery(self):   
         
             sel =self.listTable.selectionModel().selectedRows()
-           
-##            for i in range(len(sel)):
-##                print (sel[i].row())
-##                print(self.listTable.item(sel[i].row(),0).text() +"    "+self.listTable.item(sel[i].row(),1).text())
             if len(sel)>0:
                 self.confirmDelete()                
             else:
@@ -1140,7 +1152,7 @@ class Ui_MainWindow(object):
        
                        
           
-    def confirmDelete(self):
+    def confirmDelete(self): #qqq
         self.listTable.setSortingEnabled(False)
         sel =self.listTable.selectionModel().selectedRows()
         print (sel)
@@ -1167,13 +1179,14 @@ class Ui_MainWindow(object):
                     queryCom ="Delete from Table1 where Description=?"            
                     cur.execute(queryCom,self.listTable.item(sel[i].row(),1).text())
                     n =n+cur.rowcount
+                    self.listTable.removeRow(sel[i].row())
                     #print (sel[i].data().split("  -  ")[0])                
                 cur.commit()
                 con.commit()
                 
                 cur.close()
                 con.close()
-                self.setSearchKey()
+                
                 QtGui.qApp.processEvents()                    
                 self.statusbar.showMessage("Deleted "+str(n)+" entries")
                 n=0
@@ -1205,6 +1218,7 @@ class Ui_MainWindow(object):
                 QtGui.qApp.processEvents()                
                # conn =cx_Oracle.connect(usern,pwd,constr)
                 
+                
                 QtGui.qApp.processEvents()  
                 #curr = conn.cursor()
                 #qrystr = self.query_plaintextedit.toPlainText().replace(";","")
@@ -1233,6 +1247,7 @@ class Ui_MainWindow(object):
                 
                 mrow =QtGui.QStandardItem()
                 if (len(resultSet)>0) :
+                        self.runstatus03.setText("Fetching results...")
                         g= []
                         for i in  range(len(resultSet)):               
                             for j in range(len(colss)):
@@ -1251,7 +1266,7 @@ class Ui_MainWindow(object):
                         self.statusbar.showMessage("Displaying "+str(len(resultSet))+" rows"+", "+str(len(colss))+" columns")
                         
                 else:
-                    
+                    self.runstatus03.setText("")
                     self.statusbar.showMessage("No data returned")
                 
             except BaseException as e:
@@ -1277,17 +1292,28 @@ class Ui_MainWindow(object):
         descStr=self.desc_lineedit.text()
         queryStr=self.query_plaintextedit.toPlainText() #USe this for query input oracle
         usrStr=getpass.getuser()
+        
         if(moduleStr==''or descStr==''or queryStr=='' or len(moduleStr)<3 or len(descStr)<3 or len(queryStr)<3):
                 self.msgbox("x","Invalid inputs","Please check the data in field(s)")
                 
         else:                #ueryStr.replace("'","''")
                 queryCom ="UPDATE Table1 set [Query]=?,[UserId]=?,[Created Date]=? where Module=? and Description=?"
-                #+moduleStr+"','"+descStr+"','"+queryStr+"','"+usrStr+"','"+time.strftime("%m/%d/%Y")+"')"
-               
+                #+moduleStr+"','"+descStr+"','"+queryStr+"','"+usrStr+"','"+time.strftime("%m/%d/%Y")+"')"               
                 cur.execute(queryCom,queryStr,usrStr,time.strftime("%m/%d/%Y"),moduleStr,descStr)
                 f=cur.rowcount
                 cur.commit()
                 con.commit()
+                checkqry= "SELECT count(QueryDesc) FROM Audit where QueryDesc=?"
+                checkNum = cur.execute(checkqry,descStr).fetchall()
+                print (checkNum)
+                atype= "Update"
+                if int(checkNum[0][0]) <= 4:
+                    queryCom2 ="INSERT INTO Audit ([Module],[QueryDesc],[UserId],[BeforeVal],[AfterVal],[Type]) VALUES(?,?,?,?,?,?)"
+                    cur.execute(queryCom2,moduleStr,descStr,usrStr,origQuery,queryStr,atype)
+                    cur.commit()
+                    con.commit()
+                
+                
                 cur.close()
                 con.close()
                 self.lineReset()
@@ -1309,25 +1335,9 @@ class Ui_MainWindow(object):
         if not self.workerobject.isRunning():
             self.statusbar.showMessage("Query execution cancelled")
         else:
-            self.statusbar.showMessage("Still executing...")
+            self.statusbar.showMessage("Still executing...")        
             
-            
         
-        print( "trying to close thread ")
-
-        
-        
-##        constr =str(self.envdrop_combobox.currentText())
-##        usern = self.userId_lineedit.text()
-##        pwd=self.password_lineedit.text()
-##        conn =cx_Oracle.connect(usern,pwd,constr)
-##        conn.cancel()
-##        conn.close()
-##        print (conn)
-        
-        
-        
-
         
     def showMsgBox2(self): #export_button trigcx
         
@@ -1461,42 +1471,11 @@ class WorkerThread(QtCore.QThread): #workercls
             self.emit(QtCore.SIGNAL('fromWorker'),resultSet,curdesc,err,timdiff)
             return
 
-    def execQuery2(self,userid,pwd,env,queryStr,numberOfRows,q1,q2,q3):
-            
-            conn =None
-            curr = None
-            resultSet=[]
-            curdesc=""
-            
-            try:
-                conn =cx_Oracle.connect(userid,pwd,env)
-                curr = conn.cursor()
-                qrystr =queryStr.rstrip()    
-                curr.execute(qrystr)
-                result= curr.fetchmany(numRows=numberOfRows)
-                
-                for i in range(len(curr.description)):
-                    curdesc= curdesc+str(curr.description[i][0])+";"               
-                
-                resultSet = result
-                q1.put(resultSet)
-                q2.put(curdesc)
-    
-            except BaseException as e:                 
-                 q3.put(str(e))
-            finally:
-                
-                if conn and curr is not None:
-                    curr.close()
-                    conn.close()
     
         
                 
 if __name__ == "__main__":
-    
-    
-    import sys
- 
+   
     app = QtGui.QApplication(sys.argv)
     MainWindow = qCustom()
     ui = Ui_MainWindow()
