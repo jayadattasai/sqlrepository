@@ -45,14 +45,14 @@ try:
     
 except:
     logging.exception(str(datetime.datetime.now())+"[FILE ERROR]:")
-#URL='H:\qra\QueryRepo.mdb'
+
 adminppwd ="bsctdm2017"
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName(_fromUtf8("MainWindow"))
         MainWindow.resize(871, 616)
         MainWindow.activateWindow()
-        MainWindow.setWindowIcon(QtGui.QIcon('tdmt.icon'))
+        MainWindow.setWindowIcon(QtGui.QIcon('config\\tdmt.icon'))
         self.centralwidget = QtGui.QWidget(MainWindow)
         self.centralwidget.setObjectName(_fromUtf8("centralwidget"))
         self.label = QtGui.QLabel(self.centralwidget)
@@ -205,6 +205,19 @@ class Ui_MainWindow(object):
         self.desc_lineedit.setGeometry(QtCore.QRect(80, 70, 501, 20))
         self.desc_lineedit.setFrame(True)
         self.desc_lineedit.setObjectName(_fromUtf8("desc_lineedit"))
+
+        self.permi_label = QtGui.QLabel(self.searchentitypg)
+        self.permi_label.setGeometry(QtCore.QRect(340, 30, 51, 20))
+        self.permi_label.setObjectName(_fromUtf8("permi_label"))
+        self.permi_label.setText("Permissions: ")
+        
+        self.permi_lineedit = QtGui.QLineEdit(self.searchentitypg) #permi
+        self.permi_lineedit.setGeometry(QtCore.QRect(400, 31, 180, 20))
+        self.permi_lineedit.setFrame(True)
+        self.permi_lineedit.setObjectName(_fromUtf8("permi_lineedit"))
+        self.permi_lineedit.setText("All")
+        self.permi_lineedit.setToolTip("Enter user ids seperated with commas E.g: jwdaoe01, sdivaa02")
+        
         self.desc_label = QtGui.QLabel(self.searchentitypg)
         self.desc_label.setGeometry(QtCore.QRect(10, 70, 81, 20))
         self.desc_label.setObjectName(_fromUtf8("desc_label"))
@@ -332,13 +345,15 @@ class Ui_MainWindow(object):
         self.listTable.resizeColumnsToContents()
        # self.listTable.horizontalHeader().setResizeMode(35,QtGui.QHeaderView.ResizeToContents)
         self.listTable.horizontalHeader().setCascadingSectionResizes(False)
-        self.listTable.horizontalHeader().setStretchLastSection(True)
+        self.listTable.horizontalHeader().setStretchLastSection(False)
         self.listTable.verticalHeader().setDefaultSectionSize(20)
         self.listTable.setColumnCount(2)
         self.listTable.setColumnWidth(0,140)
+        self.listTable.setColumnWidth(1,659)
+##        self.listTable.setColumnWidth(2,59)
         #self.listTable.setSortingEnabled(True)
         
-        sd= ['Module','Description']
+        sd= ['Module','Description','Time criticality']
         self.listTable.setHorizontalHeaderLabels(sd)
         
         
@@ -651,18 +666,22 @@ class Ui_MainWindow(object):
         noBt = msgBox.button(QtGui.QMessageBox.No)
         noBt.setText('No')
         msgBox.exec_()
-        if msgBox.clickedButton()==yesBt:       
+        if msgBox.clickedButton()==yesBt:
+            self.clearSearch()
+            self.lineReset()
             self.stackedWidget.setCurrentIndex(0)
+            
+            
             self.checkindex()
         
     def clearSearch(self):
-        self.resultspane_listwidget.clear()
-        
-        self.listTable.clear()
+        self.resultspane_listwidget.clear()        
+        self.listTable.clear()        
         self.searchkey_lineedit.clear()
         self.runstatus01.clear()
         self.progressBar.setValue(0)
     def changeInd(self):
+        
         self.stackedWidget.setCurrentIndex(2)
         self.module_combobox.setEnabled(True)
         self.lineReset()
@@ -672,10 +691,11 @@ class Ui_MainWindow(object):
         cb.clear(mode=cb.Clipboard)
         cb.setText(self.query_plaintextedit.toPlainText(),mode=cb.Clipboard)
         self.statusbar.showMessage("Query copied into clipboard")
-    def checkindex(self):
+    def checkindex(self): #checkindes
         
         if self.stackedWidget.currentIndex()==0:
             #and not(self.stackedWidget.currentIndex()==1 or 2 or 3):
+            self.add_button.setEnabled(False)
             self.label.hide()
             self.scrollerwebview.hide()
             self.prev_button.hide()
@@ -736,6 +756,7 @@ class Ui_MainWindow(object):
         if self.add_button.isEnabled():
             self.label_2.setText("Already in admin mode")
             self.label_2.show()
+            self.module_combobox.setGeometry(QtCore.QRect(80, 31, 250, 20))
             
         else:
             
@@ -747,7 +768,10 @@ class Ui_MainWindow(object):
         
     def gobutton(self):
         if self.adminpwd.text() == adminppwd:
+            self.module_combobox.setGeometry(QtCore.QRect(80, 31, 250, 20))
             
+            self.permi_label.show()
+            self.permi_lineedit.show()
             self.label_2.hide()
             self.stackedWidget.setCurrentIndex(1)
             self.prev_button.show()
@@ -781,6 +805,8 @@ class Ui_MainWindow(object):
         self.adminpwd.clear()
         self.stackedWidget.setCurrentIndex(1)
         self.add_button.setEnabled(False)
+        self.permi_label.hide()
+        self.permi_lineedit.hide()
         self.add_button.hide()
         self.save_button.hide()
         self.audit_button.hide()
@@ -792,6 +818,7 @@ class Ui_MainWindow(object):
         self.copytoclipboard_button.setGeometry(QtCore.QRect(10, 444, 101, 23))
         self.clearinputs_button.setGeometry(QtCore.QRect(120, 444, 101, 23))
         self.clear_button.setGeometry(QtCore.QRect(641, 19, 90, 23))
+        self.module_combobox.setGeometry(QtCore.QRect(80, 31, 501, 20))
         self.checkindex()
         
         
@@ -826,16 +853,26 @@ class Ui_MainWindow(object):
                 
             self.desc_lineedit.setText(keyword2)
             
-            SQL="SELECT Module,Description,Query FROM Table1 where Table1.[Module] ='"+keyword1+"' and Table1.[Description] ='"+keyword2+"'"
+            SQL="SELECT Module,Description,Query, Permission FROM Master where Master.[Module] ='"+keyword1+"' and Master.[Description] ='"+keyword2+"'"
             rows=cur.execute(SQL).fetchall()
             cur.close()
             con.close()
             self.statusbar.showMessage("")
             rowsList2 =rows
+            userr=  getpass.getuser()#userr
             global origQuery
             origQuery = str(rowsList2[0][2])
+            self.permi_lineedit.setText(str(rowsList2[0][3]))
+            if str(rowsList2[0][3]) == 'All':
+                self.query_plaintextedit.setPlainText(str(rowsList2[0][2]))
+            elif userr in str(rowsList2[0][3]) :
+                self.query_plaintextedit.setPlainText(str(rowsList2[0][2]))
+            else:
+                self.query_plaintextedit.setPlainText("")
+                self.msgbox("x","Access denied","User '"+userr+"' does not have access to view this query.")
+                
             
-            self.query_plaintextedit.setPlainText(str(rowsList2[0][2]))
+            
         
     def msgbox(self,typ,title,message):
         msgBox=QtGui.QMessageBox()
@@ -861,16 +898,17 @@ class Ui_MainWindow(object):
             descStr=self.desc_lineedit.text()
             descStr=descStr.rstrip()
             queryStr=self.query_plaintextedit.toPlainText()
+            permiii=self.permi_lineedit.text()
             usrStr=getpass.getuser()
             if(moduleStr==''or descStr==''or queryStr=='' or len(moduleStr)<3 or len(descStr)<3 or len(queryStr)<3):
                     self.msgbox("x","Invalid Input","Please check the data in field(s)")
                     
             else:
                     
-                    queryCom ="INSERT INTO Table1 ([Module],[Description],[Query],[UserId]) VALUES(?,?,?,?)"
+                    queryCom ="INSERT INTO Master ([Module],[Description],[Query],[UserId],[Permission]) VALUES(?,?,?,?,?)"
                     #+moduleStr+"','"+descStr+"','"+queryStr+"','"+usrStr+"','"+time.strftime("%m/%d/%Y")+"')"
                    
-                    cur.execute(queryCom,moduleStr,descStr,queryStr,usrStr)#,time.strftime("%m/%d/%Y")
+                    cur.execute(queryCom,moduleStr,descStr,queryStr,usrStr,permiii)#,time.strftime("%m/%d/%Y")
                     g=cur.rowcount
                     cur.commit()
                     con.commit()                                       
@@ -892,7 +930,7 @@ class Ui_MainWindow(object):
         con = pyodbc.connect('DRIVER={};DBQ={}'.format(DRV,MDB))
 
         cur = con.cursor()
-        SQL="SELECT distinct [Module],count([Description]) FROM Table1 group by [Module]"
+        SQL="SELECT distinct [Module],count([Description]) FROM Master group by [Module]"
         rows=cur.execute(SQL).fetchall()
                
                    
@@ -906,7 +944,7 @@ class Ui_MainWindow(object):
             s1 =s1 +"<span style=color:white;>"+str( rowList[i][0]   )+":</span>&nbsp<span  style=color:white;);>"+str(rowList[i][1])+"</span>&nbsp&nbsp&nbsp&nbsp"
            
         
-        SQL2="SELECT count(*) FROM Table1 "
+        SQL2="SELECT count(*) FROM Master "
         rows2=cur.execute(SQL2).fetchall()
         s2="<span style=color:white>TOTAL :"+str(rows2[0][0])+"</span>"      
         
@@ -928,6 +966,15 @@ class Ui_MainWindow(object):
         if len(rowList)==0:
             self.resultspane_listwidget.addItem(str("No data found"))
     def search(self):
+##        dg= QtGui.QFileDialog()
+##        dg.setFileMode(QtGui.QFileDialog.AnyFile)
+##        name =""
+##        dg.exec_()
+##        name =dg.selectedFiles()
+##        print (name)
+            
+        
+        
         self.progressBar.setValue(0)
         self.resultspane_listwidget.clear()
         self.runstatus01.setText("")
@@ -942,22 +989,26 @@ class Ui_MainWindow(object):
         #searchentr
         keyword22=self.module_combobox2.currentText()
         if(keyword22=="All"):            
-            SQL="SELECT Module,Description,Query FROM Table1 where lcase(Table1.[Module]) like lcase('%"+keyword11+"%') or lcase(Table1.[Description]) like lcase('%"+keyword11+"%') ORDER BY MODULE"
+            SQL="SELECT Module,Description,Criticality FROM Master where lcase(Master.[Module]) like lcase('%"+keyword11+"%') or lcase(Master.[Description]) like lcase('%"+keyword11+"%') ORDER BY MODULE"
         else:
            # if (keyword11=="")
-            SQL="SELECT Module,Description,Query FROM Table1 where lcase(Table1.[Module]) like lcase('%"+keyword22+"%') and lcase(Table1.[Description]) like lcase('%"+keyword11+"%') ORDER BY MODULE"
+            SQL="SELECT Module,Description,Criticality FROM Master where lcase(Master.[Module]) like lcase('%"+keyword22+"%') and lcase(Master.[Description]) like lcase('%"+keyword11+"%') ORDER BY MODULE"
         rows=cur.execute(SQL).fetchall()
         self.resultspane_listwidget.hide()        
         font=QtGui.QFont()
         font.setBold(True)
+        color =['Red','Orange','Yellow','Green','Blue']
         
         if len(rows) >0:
             self.runstatus01.setText("Fetching entries ...")
             
             self.listTable.horizontalHeader().setVisible(True)
-            self.listTable.setColumnCount(2)
+            
+            self.listTable.setColumnWidth(0,140)
+            self.listTable.setColumnWidth(1,659)
+##            self.listTable.setColumnWidth(2,59)
         
-            sd= ['Module','Description']
+            sd= ['Module','Description','Time criticality']
             self.listTable.setHorizontalHeaderLabels(sd)
             self.listTable.setRowCount(len(rows))
             for i in  range(len(rows)):
@@ -967,15 +1018,46 @@ class Ui_MainWindow(object):
                     
                     item.setText(str(rows[i][j]))
                     #row = row+str(rows[i][j])+";"
-                self.listTable.item(i,0).setFont(font)
+##                if rows[i][2]=='1':                    
+##                    self.listTable.item(i,2).setBackground(QtGui.QColor('#4DADD1'))
+##                    self.listTable.item(i,2).setForeground(QtGui.QColor('#4DADD1'))
+##                elif rows[i][2]=='2':
+##                    self.listTable.item(i,2).setBackground(QtGui.QColor('#7CBB52'))
+##                    self.listTable.item(i,2).setForeground(QtGui.QColor('#7CBB52'))
+##                elif rows[i][2]=='3':
+##                    self.listTable.item(i,2).setBackground(QtGui.QColor('#D1D14D'))
+##                    self.listTable.item(i,2).setForeground(QtGui.QColor('#D1D14D'))
+##                elif rows[i][2]=='4':
+##                    self.listTable.item(i,2).setBackground(QtGui.QColor('#CA864A'))
+##                    self.listTable.item(i,2).setForeground(QtGui.QColor('#CA864A'))
+##                elif rows[i][2]=='5':
+##                    self.listTable.item(i,2).setBackground(QtGui.QColor('#B95D49'))
+##                    self.listTable.item(i,2).setForeground(QtGui.QColor('#B95D49'))
+##                else:
+##                    self.listTable.item(i,2).setBackground(QtGui.QColor('#A1A1A1'))
+##                    self.listTable.item(i,2).setForeground(QtGui.QColor('#A1A1A1'))
+                self.listTable.item(i,0).setFont(font)                
                 self.progressBar.setValue((i/len(rows))*100)
 ##                if ((int(len(rows)/5)) %5==0):
-##                    QtGui.qApp.processEvents()                   
+##                    QtGui.qApp.processEvents()
+##            for k in range(len(rows)):
+##                if rows[i][2]=='1':
+##                    self.listTable.item(i,2).setBackground(QtGui.QtColor('Blue'))
+##                elif rows[i][2]=='2':
+##                    self.listTable.item(i,2).setBackground(QtGui.QtColor('Green'))
+##                elif rows[i][2]=='3':
+##                    self.listTable.item(i,2).setBackground(QtGui.QtColor('Yellow'))
+##                elif rows[i][2]=='4':
+##                    self.listTable.item(i,2).setBackground(QtGui.QtColor('Orange'))
+##                elif rows[i][2]=='5':
+##                    self.listTable.item(i,2).setBackground(QtGui.QtColor('Red'))
+##                else:
+##                    self.listTable.item(i,2).setBackground(QtGui.QtColor('Blue'))
             self.progressBar.setValue(100)
             self.runstatus01.setText("Showing "+str(len(rows))+" entries")
             #self.listTable.resizeColumnsToContents()
             
-            self.listTable.horizontalHeader().setResizeMode(1,QtGui.QHeaderView.ResizeToContents)                
+##            self.listTable.horizontalHeader().setResizeMode(1,QtGui.QHeaderView.ResizeToContents)                
         else:
             
             self.runstatus01.setText("")
@@ -1176,7 +1258,7 @@ class Ui_MainWindow(object):
                 cur = con.cursor()
                 n = 0
                 for i in range(len(sel)):                
-                    queryCom ="Delete from Table1 where Description=?"            
+                    queryCom ="Delete from Master where Description=?"            
                     cur.execute(queryCom,self.listTable.item(sel[i].row(),1).text())
                     n =n+cur.rowcount
                     self.listTable.removeRow(sel[i].row())
@@ -1291,15 +1373,16 @@ class Ui_MainWindow(object):
         moduleStr=self.module_combobox.currentText()
         descStr=self.desc_lineedit.text()
         queryStr=self.query_plaintextedit.toPlainText() #USe this for query input oracle
+        permii= self.permi_lineedit.text()
         usrStr=getpass.getuser()
         
         if(moduleStr==''or descStr==''or queryStr=='' or len(moduleStr)<3 or len(descStr)<3 or len(queryStr)<3):
                 self.msgbox("x","Invalid inputs","Please check the data in field(s)")
                 
         else:                #ueryStr.replace("'","''")
-                queryCom ="UPDATE Table1 set [Query]=?,[UserId]=?,[Created Date]=? where Module=? and Description=?"
+                queryCom ="UPDATE Master set [Query]=?,[UserId]=?,[Permission]=? where Module=? and Description=?"
                 #+moduleStr+"','"+descStr+"','"+queryStr+"','"+usrStr+"','"+time.strftime("%m/%d/%Y")+"')"               
-                cur.execute(queryCom,queryStr,usrStr,time.strftime("%m/%d/%Y"),moduleStr,descStr)
+                cur.execute(queryCom,queryStr,usrStr,permii,moduleStr,descStr)
                 f=cur.rowcount
                 cur.commit()
                 con.commit()
@@ -1340,29 +1423,31 @@ class Ui_MainWindow(object):
         
         
     def showMsgBox2(self): #export_button trigcx
-        
-        
-        
+        self.runstatus03.setStyleSheet(_fromUtf8("color:black;"))
         if  self.model.columnCount()!=0 or self.model.rowCount()!=0:
-            msgBox=QtGui.QMessageBox()
-            msgBox.setIcon(QtGui.QMessageBox.Question)
-            #msgBox.setAttribute(QtCore.Qt.WA_DeleteOnClose)
-            #msgBox.setWindowModality(QtCore.Qt.NonModal)
-            msgBox.setWindowTitle("Confirm")
-            msgBox.setText("Are you sure you want to export data to Excel?")
-            msgBox.setStandardButtons(QtGui.QMessageBox.Yes |QtGui.QMessageBox.No)            
-            yesBt = msgBox.button(QtGui.QMessageBox.Yes)
-            yesBt.setText('Yes')
-            noBt = msgBox.button(QtGui.QMessageBox.No)
-            noBt.setText('No')
-            msgBox.exec_()
-            if msgBox.clickedButton()==yesBt:
-                if(self.radio_xlsx.isChecked()):                    
-                    self.exportToExcel()
-                elif(self.radio_csv.isChecked()):
-                    self.exportToCsv()
-                elif(self.radio_txt.isChecked()):
-                    self.exportToTxt()
+            if not (self.radio_xlsx.isChecked() or self.radio_csv.isChecked() or self.radio_txt.isChecked() ):
+                self.msgbox("x","Message","Please select the file format")
+            else:
+            
+                msgBox=QtGui.QMessageBox()
+                msgBox.setIcon(QtGui.QMessageBox.Question)
+                #msgBox.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+                #msgBox.setWindowModality(QtCore.Qt.NonModal)
+                msgBox.setWindowTitle("Confirm")
+                msgBox.setText("Are you sure you want to export the data?")
+                msgBox.setStandardButtons(QtGui.QMessageBox.Yes |QtGui.QMessageBox.No)            
+                yesBt = msgBox.button(QtGui.QMessageBox.Yes)
+                yesBt.setText('Yes')
+                noBt = msgBox.button(QtGui.QMessageBox.No)
+                noBt.setText('No')
+                msgBox.exec_()
+                if msgBox.clickedButton()==yesBt:
+                    if(self.radio_xlsx.isChecked()):                    
+                        self.exportToExcel()
+                    elif(self.radio_csv.isChecked()):
+                        self.exportToCsv()
+                    elif(self.radio_txt.isChecked()):
+                        self.exportToTxt()
                 
                 
         else:
