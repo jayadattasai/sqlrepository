@@ -3,6 +3,7 @@ from PyQt4 import QtWebKit
 import logging
 import datetime
 from openpyxl.workbook import Workbook
+from openpyxl import load_workbook
 import os
 import time
 import cx_Oracle
@@ -171,6 +172,13 @@ class Ui_MainWindow(object):
         self.resultspane_label.setObjectName(_fromUtf8("resultspane_label"))
         self.delete_button = QtGui.QPushButton(self.searchpg)
         self.delete_button.setGeometry(QtCore.QRect(750, 450, 75, 23))
+        self.import_button = QtGui.QPushButton(self.searchpg)
+        self.import_button.setGeometry(QtCore.QRect(660, 450, 75, 22))
+        self.import_button.setText("Import")
+        self.import_button.setToolTip("Import queries from Excel")
+        self.import_button.clicked.connect(self.importQ)
+        
+        
         font = QtGui.QFont()
         font.setBold(True)
         font.setWeight(75)
@@ -635,9 +643,9 @@ class Ui_MainWindow(object):
         
         
         
-        self.runstatus03.setText("")        
+        self.runstatus03.setText("Executing script...")        
         self.workerobject.start()  
-        self.statusbar.showMessage("Executing script...")
+        
         
         
             
@@ -649,7 +657,7 @@ class Ui_MainWindow(object):
                   
         except BaseException as e:
             self.showMsgBox("Error",str(e))
-        print("proces done")          
+                      
             
            
         
@@ -670,6 +678,8 @@ class Ui_MainWindow(object):
             self.clearSearch()
             self.lineReset()
             self.stackedWidget.setCurrentIndex(0)
+            self.model.clear()
+            self.progressBar2.setValue(0)
             
             
             self.checkindex()
@@ -690,7 +700,7 @@ class Ui_MainWindow(object):
         cb= QtGui.QApplication.clipboard()
         cb.clear(mode=cb.Clipboard)
         cb.setText(self.query_plaintextedit.toPlainText(),mode=cb.Clipboard)
-        self.statusbar.showMessage("Query copied into clipboard")
+        self.statusbar.showMessage("Query copied into clipboard",2000)
     def checkindex(self): #checkindes
         
         if self.stackedWidget.currentIndex()==0:
@@ -771,6 +781,7 @@ class Ui_MainWindow(object):
             self.module_combobox.setGeometry(QtCore.QRect(80, 31, 250, 20))
             
             self.permi_label.show()
+            self.import_button.show()
             self.permi_lineedit.show()
             self.label_2.hide()
             self.stackedWidget.setCurrentIndex(1)
@@ -798,9 +809,11 @@ class Ui_MainWindow(object):
             self.save_button.hide()
             self.update_button.hide()
             self.delete_button.hide()
+            self.import_button.hide()
             
     def usermode(self):
         self.label_2.setText("Wrong password. Try again.")
+        self.import_button.hide()
         self.label_2.hide()
         self.adminpwd.clear()
         self.stackedWidget.setCurrentIndex(1)
@@ -838,8 +851,8 @@ class Ui_MainWindow(object):
             self.stackedWidget.setCurrentIndex(2)
             
             
-            MDB =URL; DRV='{Microsoft Access Driver (*.mdb)}'
-            con = pyodbc.connect('DRIVER={};DBQ={}'.format(DRV,MDB))
+            MDB =URL; DRV='{Microsoft Access Driver (*.mdb)}';pwd="mdbtdm2017"
+            con = pyodbc.connect('DRIVER={};DBQ={};PWD={}'.format(DRV,MDB,pwd))
 
             cur = con.cursor()
 ##            keyword1 =sp[0]
@@ -890,8 +903,8 @@ class Ui_MainWindow(object):
     def addQu(self): 
        
         try:
-            MDB =URL; DRV='{Microsoft Access Driver (*.mdb)}'
-            con = pyodbc.connect('DRIVER={};DBQ={}'.format(DRV,MDB))
+            MDB =URL; DRV='{Microsoft Access Driver (*.mdb)}';pwd="mdbtdm2017"
+            con = pyodbc.connect('DRIVER={};DBQ={};PWD={}'.format(DRV,MDB,pwd))
             cur = con.cursor()
             moduleStr=self.module_combobox.currentText()
             moduleStr=moduleStr.rstrip()
@@ -916,18 +929,66 @@ class Ui_MainWindow(object):
                     con.close()
                     self.lineReset()
                     if g !=0:
-                        self.statusbar.showMessage("Saved!")
+                        self.statusbar.showMessage("Saved!",3000)
                         self.statusbar.setStyleSheet(_fromUtf8("color: green;font-weight: Bold;"))
                     else:
-                        self.statusbar.showMessage("Save failed!")
+                        self.statusbar.showMessage("Save failed!",5000)
+                        self.statusbar.setStyleSheet(_fromUtf8("color: Red;font-weight: Bold;"))
                     
                     
         except BaseException as e:
             self.showMsgBox("Error",str(e))
+
+    def importFromExcel(self,flname):
+        readwb = load_workbook(filename=flname)
+        readws = readwb.get_sheet_by_name(name='Sheet1')
+        impRes =[]
+        impRow=[]
+        for i in readws.iter_rows():
+            impRow=[]
+            for j in i:
+                impRow.append(j.value)            
+            impRes.append(impRow)
+
+        msgBox=QtGui.QMessageBox()
+        msgBox.setIcon(QtGui.QMessageBox.Question)
+        #msgBox.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        #msgBox.setWindowModality(QtCore.Qt.NonModal)
+        msgBox.setWindowTitle("Confirm")
+        msgBox.setText("Found "+str(len(impRes))+" queries from input file.")
+        msgBox.setStandardButtons(QtGui.QMessageBox.Yes |QtGui.QMessageBox.No)            
+        yesBt = msgBox.button(QtGui.QMessageBox.Yes)
+        yesBt.setText('Proceed')
+        noBt = msgBox.button(QtGui.QMessageBox.No)
+        noBt.setText('Cancel')
+        msgBox.exec_()
+        if msgBox.clickedButton()==yesBt:
+            self.importObj = importExclass(ipres=impRes,URL=URL)            
+            QtGui.QMainWindow.connect(self.importObj,QtCore.SIGNAL('fromImporter'),self.importMonitor)
+            self.importObj.start()
+            self.statusbar.showMessage("Importing...")
+              
+    def importMonitor(self,i,stat):
+        self.statusbar.setStyleSheet(_fromUtf8("color: green;font-weight: Bold;"))
+        print (i,stat)
+        if i !=0:
+            self.statusbar.showMessage("Imported "+str(i)+" records into Query database",5000)
+            if stat is not "":
+                self.statusbar.showMessage("Imported "+str(i)+" records into Query database. Input file contains errors, Please check the log",8000)
+                
+            
+        else:
+            self.statusbar.showMessage("Import failed! "+stat,5000)
+           
+            
+        
+    
+            
+            
     def showStat(self):           
         
-        MDB = URL ; DRV='{Microsoft Access Driver (*.mdb)};Uid:jsaika01;pwd='
-        con = pyodbc.connect('DRIVER={};DBQ={}'.format(DRV,MDB))
+        MDB = URL ; DRV='{Microsoft Access Driver (*.mdb)}';pwd="mdbtdm2017"
+        con = pyodbc.connect('DRIVER={};DBQ={};PWD={}'.format(DRV,MDB,pwd))
 
         cur = con.cursor()
         SQL="SELECT distinct [Module],count([Description]) FROM Master group by [Module]"
@@ -965,6 +1026,21 @@ class Ui_MainWindow(object):
             
         if len(rowList)==0:
             self.resultspane_listwidget.addItem(str("No data found"))
+    
+        
+    def importQ(self):
+        name =""
+        dg= QtGui.QFileDialog()
+        dg.setOption(QtGui.QFileDialog.DontUseNativeDialog)
+        
+        dg.setFileMode(QtGui.QFileDialog.AnyFile)
+        dg.setFilter("Excel Workbook(*.xlsx)")        
+        if dg.exec_() :
+            name =dg.selectedFiles()        
+            if os.path.isfile(name[0]):                
+                self.importFromExcel(name[0])
+        
+      
     def search(self):
 ##        dg= QtGui.QFileDialog()
 ##        dg.setFileMode(QtGui.QFileDialog.AnyFile)
@@ -982,8 +1058,8 @@ class Ui_MainWindow(object):
         keyword11= searchKey
         
         
-        MDB =URL; DRV='{Microsoft Access Driver (*.mdb)}'
-        con = pyodbc.connect('DRIVER={};DBQ={}'.format(DRV,MDB))
+        MDB =URL; DRV='{Microsoft Access Driver (*.mdb)}';pwd="mdbtdm2017"
+        con = pyodbc.connect('DRIVER={};DBQ={};PWD={}'.format(DRV,MDB,pwd))
         self.runstatus01.setText("Searching ...")
         cur = con.cursor()
         #searchentr
@@ -1108,7 +1184,7 @@ class Ui_MainWindow(object):
                 tick2=time.clock()
                 self.progressBar.setValue(100)
                 self.runstatus03.setText("Done! Data saved in "+os.getcwd()+"\\"+desfile)
-                self.statusbar.showMessage("Export completed in "+str(round((tick2-tick1),3))+" seconds")
+                self.statusbar.showMessage("Export completed in "+str(round((tick2-tick1),3))+" seconds",5000)
                 self.runstatus03.setStyleSheet(_fromUtf8("color: Green;"))
             else:
                 self.runstatus03.setText("Data not saved: No data found in the table.")
@@ -1162,7 +1238,7 @@ class Ui_MainWindow(object):
                 tick2=time.clock()
                 self.progressBar.setValue(100)
                 self.runstatus03.setText("Done! Data saved in "+os.getcwd()+"\\"+desfile)
-                self.statusbar.showMessage("Export completed in "+str(round((tick2-tick1),3))+" seconds")
+                self.statusbar.showMessage("Export completed in "+str(round((tick2-tick1),3))+" seconds",5000)
                 self.runstatus03.setStyleSheet(_fromUtf8("color: Green;"))
             else:
                 self.runstatus03.setText("Data not saved: No data found in the table.")
@@ -1213,7 +1289,7 @@ class Ui_MainWindow(object):
                 tick2=time.clock()
                 self.progressBar.setValue(100)
                 self.runstatus03.setText("Done! Data saved in "+os.getcwd()+"\\"+desfile)
-                self.statusbar.showMessage("Export completed in "+str(round((tick2-tick1),3))+" seconds")
+                self.statusbar.showMessage("Export completed in "+str(round((tick2-tick1),3))+" seconds",5000)
                 self.runstatus03.setStyleSheet(_fromUtf8("color: Green;"))
             else:
                 self.runstatus03.setText("Data not saved: No data found in the table.")
@@ -1253,15 +1329,16 @@ class Ui_MainWindow(object):
         if msgBox.clickedButton()==yesBt:               
             
                 #self.runstatus03.setStyleSheet(_fromUtf8("color: Blue;"))
-                MDB =URL; DRV='{Microsoft Access Driver (*.mdb)}'
-                con = pyodbc.connect('DRIVER={};DBQ={}'.format(DRV,MDB))
+                MDB =URL; DRV='{Microsoft Access Driver (*.mdb)}';pwd="mdbtdm2017"
+                con = pyodbc.connect('DRIVER={};DBQ={};PWD={}'.format(DRV,MDB,pwd))
                 cur = con.cursor()
                 n = 0
                 for i in range(len(sel)):                
                     queryCom ="Delete from Master where Description=?"            
                     cur.execute(queryCom,self.listTable.item(sel[i].row(),1).text())
                     n =n+cur.rowcount
-                    self.listTable.removeRow(sel[i].row())
+
+                
                     #print (sel[i].data().split("  -  ")[0])                
                 cur.commit()
                 con.commit()
@@ -1270,10 +1347,11 @@ class Ui_MainWindow(object):
                 con.close()
                 
                 QtGui.qApp.processEvents()                    
-                self.statusbar.showMessage("Deleted "+str(n)+" entries")
+                self.statusbar.showMessage("Deleted "+str(n)+" entries. Please search again to refresh the view.",5000)
+##                self.msgbox("x","Message","Username or password is blank")
                 n=0
         else:
-            self.statusbar.showMessage("Operation cancelled.")
+            self.statusbar.showMessage("Operation cancelled.",2000)
             
     
              
@@ -1296,7 +1374,7 @@ class Ui_MainWindow(object):
             
             try:                
                 self.model.clear()
-                self.statusbar.showMessage("")
+                self.runstatus03.setText("")
                 QtGui.qApp.processEvents()                
                # conn =cx_Oracle.connect(usern,pwd,constr)
                 
@@ -1345,11 +1423,11 @@ class Ui_MainWindow(object):
                         self.progressBar2.setValue(100)
                         QtGui.qApp.processEvents()                                                  
                         self.runstatus03.setText("Task completed in "+timdiff+" seconds")                    
-                        self.statusbar.showMessage("Displaying "+str(len(resultSet))+" rows"+", "+str(len(colss))+" columns")
+                        self.statusbar.showMessage("Displaying "+str(len(resultSet))+" rows"+", "+str(len(colss))+" columns",10000)
                         
                 else:
                     self.runstatus03.setText("")
-                    self.statusbar.showMessage("No data returned")
+                    self.statusbar.showMessage("No data returned",5000)
                 
             except BaseException as e:
                     self.showMsgBox("Error",str(e))
@@ -1367,8 +1445,8 @@ class Ui_MainWindow(object):
         
     def updQu(self):
         
-        MDB =URL; DRV='{Microsoft Access Driver (*.mdb)}'
-        con = pyodbc.connect('DRIVER={};DBQ={}'.format(DRV,MDB))
+        MDB =URL; DRV='{Microsoft Access Driver (*.mdb)}';pwd="mdbtdm2017"
+        con = pyodbc.connect('DRIVER={};DBQ={};PWD={}'.format(DRV,MDB,pwd))
         cur = con.cursor()
         moduleStr=self.module_combobox.currentText()
         descStr=self.desc_lineedit.text()
@@ -1402,10 +1480,10 @@ class Ui_MainWindow(object):
                 self.lineReset()
 ##                time.sleep(0.5)
                 if f!=0:
-                    self.statusbar.showMessage("Updated!")
+                    self.statusbar.showMessage("Updated!",2000)
                     self.statusbar.setStyleSheet("color:green")
                 else:
-                    self.statusbar.showMessage("Update failed!")
+                    self.statusbar.showMessage("Update failed!",2000)
                     self.statusbar.setStyleSheet("color:orange")
                     
 ##                
@@ -1413,10 +1491,14 @@ class Ui_MainWindow(object):
         self.query_plaintextedit.clear()
         self.desc_lineedit.clear()
         self.module_combobox.setCurrentIndex(0)
+        self.statusbar.clearMessage()
+        self.runstatus03.clear()
+        self.adminpwd.clear()
     def terminate(self): #terter
         self.workerobject.terminate()
         if not self.workerobject.isRunning():
-            self.statusbar.showMessage("Query execution cancelled")
+            self.statusbar.showMessage("Query execution cancelled",3000)
+            self.runstatus03.setText("")
         else:
             self.statusbar.showMessage("Still executing...")        
             
@@ -1511,6 +1593,82 @@ class qCustom (QtGui.QMainWindow):
             
         else:
             event.ignore()
+            
+
+       
+        
+    #def startImport(self):
+        
+class importExclass(QtCore.QThread):
+    
+    def __init__(self,ipres,URL, parent=None):
+        QtCore.QThread.__init__(self,parent)
+##        self.signalvar = QtCore.pyqtSignal()
+        self.ipres =ipres
+        self.URL=URL
+       
+
+    def run(self):    
+        cur= None
+        con =None
+        stat=""
+        g=0
+        f =open("Import_log_"+str(time.strftime('%y-%m-%d_%H%M%S'))+".txt","a") 
+        try:
+            MDB =self.URL; DRV='{Microsoft Access Driver (*.mdb)}';pwd="mdbtdm2017"
+            con = pyodbc.connect('DRIVER={};DBQ={};PWD={}'.format(DRV,MDB,pwd))
+            cur = con.cursor()
+            usrStr=getpass.getuser()
+            if len(self.ipres)==0:
+                    stat="Please check the data in input excel file"
+                    
+            else:
+                
+                
+                idx=1  
+                queryCom ="INSERT INTO Master ([Module],[Description],[Query],[UserId]) VALUES(?,?,?,?)"
+                for record in self.ipres[1:]:
+                    idx += 1
+                    
+                    if (record[1] is None or record[2] is None) or (record[1] is " " or record[2] is " ") or (record[0] is None or record[0] is " "):  
+                                                                                                
+                       stat="One or more input fields are empty for record(s). Please check the log for errors"
+                       f.write("[ERROR]: Could not import row# "+str(idx)+" : ONE OR MORE FIELD(S) IS EMPTY \n")
+                       
+                    else:
+                    
+                        try:
+                            cur.execute(queryCom,str(record[0]),str(record[1]),str(record[2]),usrStr)                            
+                            g=g+cur.rowcount                        
+                            
+                        except BaseException as e:
+                            stat=str(e)
+                            g=g-1
+                            f.write("[ERROR]: Could not import row# "+str(idx)+" <"+str(record[0])+" "+str(record[1])+"> error: "+str(e)+"\n")
+                            pass
+                        finally:
+                            
+                            cur.commit()
+                            pass
+                            
+                        
+                                                          
+                    
+                    
+                  
+                    
+                    
+        except BaseException as e:
+            stat=str(e)
+            
+        finally:
+            
+            con.commit() 
+            cur.close()
+            con.close()
+            f.close()
+            self.emit(QtCore.SIGNAL('fromImporter'),g,stat)
+            return
 
 class WorkerThread(QtCore.QThread): #workercls
 
