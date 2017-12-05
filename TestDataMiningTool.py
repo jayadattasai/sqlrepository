@@ -430,7 +430,7 @@ class Ui_MainWindow(object):
         self.prev_button.setCheckable(False)
         self.prev_button.setObjectName(_fromUtf8("prev_button"))
         self.logoff_button = QtGui.QPushButton(self.centralwidget)
-        self.logoff_button.setGeometry(QtCore.QRect(706, 50, 41, 21))
+        self.logoff_button.setGeometry(QtCore.QRect(650, 50, 41, 21))
         self.logoff_button.setCheckable(False)
         self.logoff_button.setObjectName(_fromUtf8("logoff_button"))
         self.logoff_button.setText("Logout")
@@ -439,6 +439,12 @@ class Ui_MainWindow(object):
         self.next_button = QtGui.QPushButton(self.centralwidget)
         self.next_button.setGeometry(QtCore.QRect(809, 50, 41, 21))
         self.next_button.setObjectName(_fromUtf8("next_button"))
+        self.home_button = QtGui.QPushButton(self.centralwidget)
+        self.home_button.setGeometry(QtCore.QRect(706, 50, 41, 21))
+        self.home_button.setObjectName(_fromUtf8("home_button"))
+        self.home_button.setText("Home")
+        self.home_button.clicked.connect(self.homebutton) 
+        
         self.prev_button.setText("Back")
         self.next_button.setText("Next")
         self.scrollerwebview = QtWebKit.QWebView(self.centralwidget)
@@ -680,7 +686,8 @@ class Ui_MainWindow(object):
             self.stackedWidget.setCurrentIndex(0)
             self.model.clear()
             self.progressBar2.setValue(0)
-            
+            self.userId_lineedit.clear()
+            self.password_lineedit.clear()           
             
             self.checkindex()
         
@@ -708,12 +715,14 @@ class Ui_MainWindow(object):
             self.add_button.setEnabled(False)
             self.label.hide()
             self.scrollerwebview.hide()
+            self.home_button.hide()
             self.prev_button.hide()
             self.next_button.hide()                      
             self.mdcount_label.hide()
             self.logoff_button.hide()
         else:
             self.logoff_button.show()
+            self.home_button.show()
             self.label.show()
             self.scrollerwebview.show()
             self.prev_button.show()
@@ -721,6 +730,8 @@ class Ui_MainWindow(object):
             self.scrollerwebview.show()            
             self.mdcount_label.show()
 
+    def homebutton(self):
+        self.stackedWidget.setCurrentIndex(1)
     def prevbutton(self):
         
         global conns
@@ -876,13 +887,13 @@ class Ui_MainWindow(object):
             global origQuery
             origQuery = str(rowsList2[0][2])
             self.permi_lineedit.setText(str(rowsList2[0][3]))
-            if str(rowsList2[0][3]) == 'All':
-                self.query_plaintextedit.setPlainText(str(rowsList2[0][2]))
-            elif userr in str(rowsList2[0][3]) :
-                self.query_plaintextedit.setPlainText(str(rowsList2[0][2]))
-            else:
-                self.query_plaintextedit.setPlainText("")
-                self.msgbox("x","Access denied","User '"+userr+"' does not have access to view this query.")
+##            if str(rowsList2[0][3]) == 'All':
+            self.query_plaintextedit.setPlainText(str(rowsList2[0][2]))
+##            elif userr in str(rowsList2[0][3]) :
+##                self.query_plaintextedit.setPlainText(str(rowsList2[0][2]))
+##            else:
+##                self.query_plaintextedit.setPlainText("")
+##                self.msgbox("x","Access denied","User '"+userr+"' does not have access to view this query.")
                 
             
             
@@ -955,7 +966,7 @@ class Ui_MainWindow(object):
         #msgBox.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         #msgBox.setWindowModality(QtCore.Qt.NonModal)
         msgBox.setWindowTitle("Confirm")
-        msgBox.setText("Found "+str(len(impRes))+" queries from input file.")
+        msgBox.setText("Found "+str(len(impRes)-1)+" queries from input file.")
         msgBox.setStandardButtons(QtGui.QMessageBox.Yes |QtGui.QMessageBox.No)            
         yesBt = msgBox.button(QtGui.QMessageBox.Yes)
         yesBt.setText('Proceed')
@@ -1031,8 +1042,9 @@ class Ui_MainWindow(object):
     def importQ(self):
         name =""
         dg= QtGui.QFileDialog()
+##        name= dg.getOpenFileName(None,'Open File','','Excel Workbook(*.xlsx)',dg.DontUseNativeDialog)
         dg.setOption(QtGui.QFileDialog.DontUseNativeDialog)
-        
+##        print( name)
         dg.setFileMode(QtGui.QFileDialog.AnyFile)
         dg.setFilter("Excel Workbook(*.xlsx)")        
         if dg.exec_() :
@@ -1063,12 +1075,22 @@ class Ui_MainWindow(object):
         self.runstatus01.setText("Searching ...")
         cur = con.cursor()
         #searchentr
+        usrStrr = getpass.getuser()
         keyword22=self.module_combobox2.currentText()
-        if(keyword22=="All"):            
-            SQL="SELECT Module,Description,Criticality FROM Master where lcase(Master.[Module]) like lcase('%"+keyword11+"%') or lcase(Master.[Description]) like lcase('%"+keyword11+"%') ORDER BY MODULE"
+        if(keyword22=="All"):
+            if self.save_button.isHidden():
+                SQL="SELECT Module,Description,Criticality FROM Master where (lcase(Master.[Module]) like lcase('%"+keyword11+"%') or lcase(Master.[Description]) like lcase('%"+keyword11+"%')) and (lcase(Master.[Permission]) like lcase('%"+usrStrr+"%') or lcase(Master.[Permission]) like lcase('%All%')) ORDER BY MODULE"
+            else:
+                SQL="SELECT Module,Description,Criticality FROM Master where lcase(Master.[Module]) like lcase('%"+keyword11+"%') or lcase(Master.[Description]) like lcase('%"+keyword11+"%') ORDER BY MODULE"
+            
+                
         else:
            # if (keyword11=="")
-            SQL="SELECT Module,Description,Criticality FROM Master where lcase(Master.[Module]) like lcase('%"+keyword22+"%') and lcase(Master.[Description]) like lcase('%"+keyword11+"%') ORDER BY MODULE"
+           if self.save_button.isHidden():
+               SQL="SELECT Module,Description,Criticality FROM Master where lcase(Master.[Module]) like lcase('%"+keyword22+"%') and lcase(Master.[Description]) like lcase('%"+keyword11+"%') and (lcase(Master.[Permission]) like lcase('%"+usrStrr+"%') or lcase(Master.[Permission]) like lcase('%All%')) ORDER BY MODULE"
+           else:
+               SQL="SELECT Module,Description,Criticality FROM Master where lcase(Master.[Module]) like lcase('%"+keyword22+"%') and lcase(Master.[Description]) like lcase('%"+keyword11+"%') ORDER BY MODULE"
+        
         rows=cur.execute(SQL).fetchall()
         self.resultspane_listwidget.hide()        
         font=QtGui.QFont()
@@ -1151,7 +1173,7 @@ class Ui_MainWindow(object):
 
                 desfile ='Export_'+str(time.strftime('%y-%m-%d_%H%M%S'))+'.txt'
                 outputfile = open(desfile,'w')
-                output = csv.writer(outputfile,delimiter=' ')
+                output = csv.writer(outputfile,delimiter=' ',lineterminator='\n')
                 coll=[]
                 for a in range(self.model.columnCount()):
                     coll.append(self.model.horizontalHeaderItem(a).text())
@@ -1205,7 +1227,7 @@ class Ui_MainWindow(object):
 
                 desfile ='Export_'+str(time.strftime('%y-%m-%d_%H%M%S'))+'.csv'
                 outputfile = open(desfile,'w')
-                output = csv.writer(outputfile,dialect='excel',quotechar="'",quoting=csv.QUOTE_NONNUMERIC)
+                output = csv.writer(outputfile,dialect='excel',quotechar="'",quoting=csv.QUOTE_NONNUMERIC,lineterminator='\n')
                 coll=[]
                 for a in range(self.model.columnCount()):
                     coll.append(self.model.horizontalHeaderItem(a).text())
@@ -1227,7 +1249,7 @@ class Ui_MainWindow(object):
                     
                 for index in roww:
                     self.progressBar.setValue((i/self.model.rowCount())*100)
-                   # print (index)
+                   
                     output.writerow(index)
                     
                 self.progressBar.setValue(100)
@@ -1362,6 +1384,7 @@ class Ui_MainWindow(object):
     def execQuery(self,resultSet,curdesc,err,timdiff): ##oraexe
         
         if self.userId_lineedit.text() or self.password_lineedit.text() is not "" :
+            
             if(err is not "" ):
                 self.showMsgBox("Error",err)
             if (len(resultSet)==0):
@@ -1458,9 +1481,9 @@ class Ui_MainWindow(object):
                 self.msgbox("x","Invalid inputs","Please check the data in field(s)")
                 
         else:                #ueryStr.replace("'","''")
-                queryCom ="UPDATE Master set [Query]=?,[UserId]=?,[Permission]=? where Module=? and Description=?"
+                queryCom ="UPDATE Master set [Query]=?,[Permission]=? where Module=? and Description=?"
                 #+moduleStr+"','"+descStr+"','"+queryStr+"','"+usrStr+"','"+time.strftime("%m/%d/%Y")+"')"               
-                cur.execute(queryCom,queryStr,usrStr,permii,moduleStr,descStr)
+                cur.execute(queryCom,queryStr,permii,moduleStr,descStr)
                 f=cur.rowcount
                 cur.commit()
                 con.commit()
@@ -1613,6 +1636,7 @@ class importExclass(QtCore.QThread):
         con =None
         stat=""
         g=0
+        ig=0
         f =open("Import_log_"+str(time.strftime('%y-%m-%d_%H%M%S'))+".txt","a") 
         try:
             MDB =self.URL; DRV='{Microsoft Access Driver (*.mdb)}';pwd="mdbtdm2017"
@@ -1626,7 +1650,7 @@ class importExclass(QtCore.QThread):
                 
                 
                 idx=1  
-                queryCom ="INSERT INTO Master ([Module],[Description],[Query],[UserId]) VALUES(?,?,?,?)"
+                queryCom ="INSERT INTO Master ([Module],[Description],[Permission],[Query],[UserId]) VALUES(?,?,?,?,?)"
                 for record in self.ipres[1:]:
                     idx += 1
                     
@@ -1638,25 +1662,29 @@ class importExclass(QtCore.QThread):
                     else:
                     
                         try:
-                            cur.execute(queryCom,str(record[0]),str(record[1]),str(record[2]),usrStr)                            
-                            g=g+cur.rowcount                        
+                            if  record[4] is None and record[5] is not None:                                
+                                concatQry=str(record[3])+str(record[5])
+                            elif record[4] is not None and record[5] is None:
+                                concatQry=str(record[3])+str(record[4])
+                            elif record[4] is None and record[5] is None:
+                                concatQry=str(record[3])
+                            else:
+                                concatQry=str(record[3])+str(record[4])+str(record[5])
+                                
+                            cur.execute(queryCom,str(record[0]),str(record[1]),str(record[2]),concatQry,usrStr)                          
+                                                  
                             
-                        except BaseException as e:
-                            stat=str(e)
-                            g=g-1
+                        except BaseException as e:                                                       
                             f.write("[ERROR]: Could not import row# "+str(idx)+" <"+str(record[0])+" "+str(record[1])+"> error: "+str(e)+"\n")
                             pass
+                            
+                            
                         finally:
-                            
+                            if cur.rowcount is not -1:
+                                g+= cur.rowcount                                
                             cur.commit()
-                            pass
                             
-                        
-                                                          
-                    
-                    
-                  
-                    
+                      
                     
         except BaseException as e:
             stat=str(e)
